@@ -94,6 +94,7 @@ class Packager(object):
         self.input_path_prefix = None
         self.editor = editor
         self.manifest = {}
+        self.bpmn = {}
 
     def add_bpmn_file(self, filename):
         """
@@ -137,7 +138,6 @@ class Packager(object):
                     os.path.dirname(filename))
 
         # Parse all of the XML:
-        self.bpmn = {}
         for filename in self.input_files:
             bpmn = ET.parse(filename)
             self.bpmn[os.path.abspath(filename)] = bpmn
@@ -162,6 +162,7 @@ class Packager(object):
             filename = spec.file
             if filename not in done_files:
                 done_files.add(filename)
+                print("Filename -> ", filename)
 
                 bpmn = self.bpmn[os.path.abspath(filename)]
                 self.write_to_package_zip(
@@ -171,6 +172,55 @@ class Packager(object):
                     "src/" + self._get_zip_path(filename), filename)
 
                 self._call_editor_hook('package_for_editor', spec, filename)
+
+        self.write_meta_data()
+        self.write_manifest()
+
+        self.package_zip.close()
+
+    def create_package_from_string(self, bmpn_xml):
+        """
+        Creates the package, writing the data out to the provided file-like
+        object.
+        """
+
+        FILENAME = "process.bpmn"
+
+        # Parse all of the XML:
+        sf = StringIO(bmpn_xml)
+        bpmn = ET.parse(sf)
+        self.bpmn[FILENAME] = bpmn
+
+        # Now run through pre-parsing and validation:
+        for filename, bpmn in list(self.bpmn.items()):
+            bpmn = self.pre_parse_and_validate(bpmn, filename)
+            self.bpmn[FILENAME] = bpmn
+
+        # Now check that we can parse it fine:
+        for filename, bpmn in list(self.bpmn.items()):
+            self.parser.add_bpmn_xml(bpmn, filename=filename)
+
+        self.wf_spec = self.parser.get_spec(self.entry_point_process)
+
+        # Now package everything:
+        self.package_zip = zipfile.ZipFile(
+            self.package_file, "w", compression=zipfile.ZIP_DEFLATED)
+        #
+        # done_files = set()
+        # for spec in self.wf_spec.get_specs_depth_first():
+        #     filename = spec.file
+        #     if filename not in done_files:
+        #         done_files.add(filename)
+
+        # print("Filename -> ", filename)
+
+        bpmn = self.bpmn[FILENAME]
+        self.write_to_package_zip(FILENAME, ET.tostring(bpmn.getroot()))
+
+        # self.write_file_to_package_zip(
+        #     "src/" + FILENAME, FILENAME)
+
+        self._call_editor_hook('package_for_editor', "TEST", filename)
 
         self.write_meta_data()
         self.write_manifest()
