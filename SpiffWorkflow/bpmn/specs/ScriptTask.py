@@ -27,7 +27,6 @@ LOG = logging.getLogger(__name__)
 
 
 class ScriptTask(Simple, BpmnSpecMixin):
-
     """
     Task Spec for a bpmn:scriptTask node.
     """
@@ -47,7 +46,8 @@ class ScriptTask(Simple, BpmnSpecMixin):
         assert not task.workflow.read_only
         try:
             task.workflow.script_engine.execute(task, self.script, **task.data)
-        except Exception:
+        except Exception as e:
+            print("======================================================>\n" + str(e))
             LOG.error('Error executing ScriptTask; task=%r',
                       task, exc_info=True)
             # set state to WAITING (because it is definitely not COMPLETED)
@@ -57,3 +57,16 @@ class ScriptTask(Simple, BpmnSpecMixin):
             raise WorkflowTaskExecException(
                 task, 'Error during script execution')
         super(ScriptTask, self)._on_complete_hook(task)
+
+    def serialize(self, serializer):
+        super_state = serializer.serialize_simple(self)
+        super_state['script'] = self.script
+        return super_state
+
+    @classmethod
+    def deserialize(cls, serializer, wf_spec, s_state):
+        almost_script_task: Simple = serializer.deserialize_simple(wf_spec, s_state)
+        script_task: ScriptTask = almost_script_task
+        script_task.__class__ = ScriptTask
+        script_task.__dict__['script'] = s_state['script']
+        return script_task

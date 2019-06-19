@@ -22,10 +22,17 @@ from ...specs.Simple import Simple
 
 
 class UserTask(Simple, BpmnSpecMixin):
-
     """
     Task Spec for a bpmn:userTask node.
     """
 
     def is_engine_task(self):
         return False
+
+    # Note that we can reuse the super's serialize()
+    @classmethod
+    def deserialize(cls, serializer, wf_spec, s_state):
+        almost_user_task: Simple = serializer.deserialize_simple(wf_spec, s_state)
+        user_task: UserTask = almost_user_task
+        user_task.__class__ = UserTask
+        return user_task
